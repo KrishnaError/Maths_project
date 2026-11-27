@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Markov Chain · Next-Word Predictor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<header class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <circle cx="7"  cy="14" r="4" fill="#818cf8"/>
+          <circle cx="21" cy="7"  r="4" fill="#34d399"/>
+          <circle cx="21" cy="21" r="4" fill="#f472b6"/>
+          <line x1="10.5" y1="12.5" x2="17.5" y2="8.5"  stroke="#818cf8" stroke-width="1.5"/>
+          <line x1="10.5" y1="15.5" x2="17.5" y2="19.5" stroke="#f472b6" stroke-width="1.5"/>
+          <line x1="21"   y1="11"   x2="21"   y2="17"    stroke="#34d399" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <span class="logo-title">MarkovPredict</span>
+        <span class="logo-sub">Probability &amp; Statistics · BTech Project</span>
+      </div>
+    </div>
+    <nav class="nav-tabs">
+      <button class="nav-btn active" data-section="predict">🔮 Predictor</button>
+      <button class="nav-btn" data-section="generate">✍️ Generator</button>
+      <button class="nav-btn" data-section="analysis">📊 Analysis</button>
+      <button class="nav-btn" data-section="theory">📚 Theory</button>
+    </nav>
+  </div>
+</header>
+
+<!-- ═══════════════════ HERO ═══════════════════ -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-badge">🎓 Probability &amp; Statistics · Markov Chain · NLP</div>
+    <h1 class="hero-title">
+      Next-Word <span class="gradient-text">Predictor</span>
+    </h1>
+    <p class="hero-desc">
+      A statistical language model using bigrams, trigrams, MLE estimation,
+      Laplace smoothing &amp; backoff strategy — just like how your phone keyboard works.
+    </p>
+    <div class="hero-stats" id="heroStats">
+      <div class="hstat"><span class="hstat-num" id="hs-vocab">–</span><span class="hstat-label">Vocabulary</span></div>
+      <div class="hstat"><span class="hstat-num" id="hs-bigrams">–</span><span class="hstat-label">Bigrams</span></div>
+      <div class="hstat"><span class="hstat-num" id="hs-trigrams">–</span><span class="hstat-label">Trigrams</span></div>
+      <div class="hstat"><span class="hstat-num" id="hs-tokens">–</span><span class="hstat-label">Tokens</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ MAIN CONTENT ═══════════════════ -->
+<main class="main">
+
+  <!-- ── PREDICTOR SECTION ── -->
+  <section class="section active" id="section-predict">
+    <div class="section-header">
+      <h2>🔮 Next-Word Predictor</h2>
+      <p>Type a sentence and the model predicts the top-3 most probable next words using the Markov property.</p>
+    </div>
+
+    <div class="predict-layout">
+      <div class="card input-card">
+        <label class="card-label">Enter Your Text Context</label>
+        <div class="textarea-wrapper">
+          <textarea
+            id="predictInput"
+            class="text-input"
+            placeholder="Type something like: 'the quick brown' or 'probability is the'"
+            rows="4"
+          ></textarea>
+          <div class="char-hint">The model uses the last 2 words as context (Markov Property)</div>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="doPrediction()">
+            <span>Predict Next Word</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="btn btn-ghost" onclick="clearPredict()">Clear</button>
+        </div>
+      </div>
+
+      <div class="card results-card" id="predResults">
+        <label class="card-label">Top-3 Predictions</label>
+        <div class="empty-state" id="predEmpty">
+          <div class="empty-icon">🤔</div>
+          <p>Predictions will appear here</p>
+        </div>
+        <div id="predCards" class="pred-cards" style="display:none"></div>
+
+        <div class="context-info" id="contextInfo" style="display:none">
+          <span class="ci-label">Context words used:</span>
+          <span class="ci-words" id="ciWords"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick example chips -->
+    <div class="card">
+      <label class="card-label">Quick Examples</label>
+      <div class="chips">
+        <button class="chip" onclick="setContext('the probability')">the probability</button>
+        <button class="chip" onclick="setContext('machine learning is')">machine learning is</button>
+        <button class="chip" onclick="setContext('statistics helps us')">statistics helps us</button>
+        <button class="chip" onclick="setContext('the markov chain')">the markov chain</button>
+        <button class="chip" onclick="setContext('data science involves')">data science involves</button>
+        <button class="chip" onclick="setContext('students learn probability')">students learn probability</button>
+        <button class="chip" onclick="setContext('the normal distribution')">the normal distribution</button>
+        <button class="chip" onclick="setContext('hypothesis testing')">hypothesis testing</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── GENERATOR SECTION ── -->
+  <section class="section" id="section-generate">
+    <div class="section-header">
+      <h2>✍️ Sentence Generator</h2>
+      <p>Uses weighted random sampling based on transition probabilities to generate new sentences.</p>
+    </div>
+
+    <div class="gen-layout">
+      <div class="card">
+        <label class="card-label">Seed Word (Optional)</label>
+        <input type="text" id="seedInput" class="text-input-sm" placeholder="e.g. 'statistics' or 'the'">
+        <div class="slider-row">
+          <label>Max Words: <strong id="maxWordsVal">20</strong></label>
+          <input type="range" id="maxWordsSlider" min="5" max="40" value="20"
+                 oninput="document.getElementById('maxWordsVal').textContent=this.value">
+        </div>
+        <button class="btn btn-primary" onclick="doGenerate()">
+          <span>Generate Sentences</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8c0-3.3 2.7-6 6-6s6 2.7 6 6-2.7 6-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10 8l2 2 2-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+
+      <div class="card" id="genResults">
+        <label class="card-label">Generated Sentences</label>
+        <div class="empty-state" id="genEmpty">
+          <div class="empty-icon">📝</div>
+          <p>Generated sentences will appear here</p>
+        </div>
+        <div id="genSentences" style="display:none"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── ANALYSIS SECTION ── -->
+  <section class="section" id="section-analysis">
+    <div class="section-header">
+      <h2>📊 Statistical Analysis</h2>
+      <p>Corpus statistics, model evaluation, sparsity analysis, and HashMap vs Trie benchmark.</p>
+    </div>
+
+    <div class="analysis-grid">
+      <!-- Corpus Stats -->
+      <div class="card">
+        <div class="card-header-row">
+          <label class="card-label">📦 Corpus Statistics</label>
+          <button class="btn-sm" onclick="loadStats()">Load Stats</button>
+        </div>
+        <div id="corpusStats" class="stats-grid"></div>
+      </div>
+
+      <!-- Sparsity -->
+      <div class="card">
+        <label class="card-label">🕳️ Sparsity Problem</label>
+        <div id="sparsityInfo" class="sparsity-info">
+          <p class="sparsity-explain">
+            <strong>Sparsity</strong> = fraction of possible n-gram combinations that never appear in training data.
+            Trigrams are <em>much more sparse</em> than bigrams — this is why smoothing is essential.
+          </p>
+          <div class="sparsity-bars" id="sparsityBars"></div>
+        </div>
+      </div>
+
+      <!-- Top Bigrams -->
+      <div class="card">
+        <label class="card-label">🔝 Top Bigrams</label>
+        <div id="topBigrams" class="bigram-list"></div>
+      </div>
+
+      <!-- Accuracy -->
+      <div class="card">
+        <div class="card-header-row">
+          <label class="card-label">🎯 Model Accuracy</label>
+          <button class="btn-sm" onclick="loadAccuracy()">Evaluate</button>
+        </div>
+        <p class="card-hint">Tests Top-1 and Top-3 accuracy on held-out 20% of corpus.</p>
+        <div id="accuracyResult" class="accuracy-result"></div>
+      </div>
+
+      <!-- Perplexity -->
+      <div class="card">
+        <div class="card-header-row">
+          <label class="card-label">📉 Perplexity</label>
+          <button class="btn-sm" onclick="loadPerplexity()">Calculate</button>
+        </div>
+        <p class="card-hint">Lower perplexity = better model. Compares bigram vs trigram.</p>
+        <div id="perplexityResult" class="perplexity-result"></div>
+      </div>
+
+      <!-- Benchmark -->
+      <div class="card full-width">
+        <div class="card-header-row">
+          <label class="card-label">⚡ HashMap vs Trie Benchmark</label>
+          <button class="btn-sm" onclick="loadBenchmark()">Run Benchmark</button>
+        </div>
+        <p class="card-hint">Compare query speed of two data structures for storing n-gram counts.</p>
+        <div id="benchmarkResult" class="benchmark-result"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── THEORY SECTION ── -->
+  <section class="section" id="section-theory">
+    <div class="section-header">
+      <h2>📚 Theory Reference</h2>
+      <p>All the probability &amp; statistics concepts used in this project.</p>
+    </div>
+
+    <div class="theory-grid">
+      <div class="theory-card">
+        <div class="theory-icon">🎲</div>
+        <h3>Markov Property</h3>
+        <p>The future state depends <em>only</em> on the current state, not the full history.</p>
+        <div class="formula">P(wₙ | w₁,...,wₙ₋₁) ≈ P(wₙ | wₙ₋₁)</div>
+        <p class="theory-detail">This simplification makes language modeling tractable. Bigram uses 1 previous word; trigram uses 2.</p>
+      </div>
+
+      <div class="theory-card">
+        <div class="theory-icon">📊</div>
+        <h3>Maximum Likelihood Estimation</h3>
+        <p>Estimate probabilities directly from observed counts in training data.</p>
+        <div class="formula">P(w₂|w₁) = Count(w₁,w₂) / Count(w₁)</div>
+        <p class="theory-detail">MLE gives the most likely parameters given the observed data — no priors assumed.</p>
+      </div>
+
+      <div class="theory-card">
+        <div class="theory-icon">🔧</div>
+        <h3>Laplace Smoothing</h3>
+        <p>Add k to every count to avoid zero probabilities for unseen word pairs.</p>
+        <div class="formula">P(w₂|w₁) = (Count(w₁,w₂) + k) / (Count(w₁) + k·|V|)</div>
+        <p class="theory-detail">Without smoothing, any unseen bigram gets P=0, making perplexity infinite. Laplace fixes this.</p>
+      </div>
+
+      <div class="theory-card">
+        <div class="theory-icon">🔙</div>
+        <h3>Backoff Strategy</h3>
+        <p>Try trigram first; if data is sparse, fall back to bigram, then unigram.</p>
+        <div class="formula">Trigram → Bigram → Unigram</div>
+        <p class="theory-detail">Higher-order models are more accurate but sparser. Backoff combines their strengths.</p>
+      </div>
+
+      <div class="theory-card">
+        <div class="theory-icon">📐</div>
+        <h3>Perplexity</h3>
+        <p>Measures how well a model predicts a test corpus. Lower = better.</p>
+        <div class="formula">PP(W) = 2^(−(1/N) Σ log₂ P(wᵢ|wᵢ₋₁))</div>
+        <p class="theory-detail">A perplexity of k means the model is as "confused" as choosing uniformly from k words.</p>
+      </div>
+
+      <div class="theory-card">
+        <div class="theory-icon">🕳️</div>
+        <h3>Data Sparsity Problem</h3>
+        <p>Most possible n-gram combinations never appear in training data.</p>
+        <div class="formula">Sparsity ≈ 1 − (seen n-grams / |V|ⁿ)</div>
+        <p class="theory-detail">Vocabulary of 500 words → 250,000 possible bigrams but far fewer are observed. Worse for trigrams.</p>
+      </div>
+
+      <div class="theory-card">
+        <div class="theory-icon">🌲</div>
+        <h3>Trie vs Hash Map (DSA)</h3>
+        <p>Two structures to store n-gram counts with different trade-offs.</p>
+        <div class="formula">Trie: O(m) · HashMap: O(1) avg</div>
+        <p class="theory-detail">Hash maps are faster for lookups on average. Tries save memory on shared prefixes and support prefix search.</p>
+      </div>
+
+      <div class="theory-card">
+        <div class="theory-icon">📱</div>
+        <h3>Real-World Connection</h3>
+        <p>Your phone keyboard uses exactly this — a statistical language model.</p>
+        <div class="formula">P("world" | "hello") → suggests "world"</div>
+        <p class="theory-detail">Modern keyboards use neural LMs, but the fundamental idea of predicting from context is the same Markov chain principle.</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ═══════════════════ FOOTER ═══════════════════ -->
+<footer class="footer">
+  <div class="footer-inner">
+    <p>Built with ❤️ using <strong>Python · Flask · Markov Chains</strong></p>
+    <p>Probability &amp; Statistics · BTech Computer Science Project</p>
+  </div>
+</footer>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loader">
+    <div class="loader-ring"></div>
+    <p>Processing...</p>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

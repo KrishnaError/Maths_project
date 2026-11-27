@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% block title %}Analytics — WordNext AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-inner">
+    <div>
+      <div class="page-eyebrow">Model Evaluation</div>
+      <h1 class="page-title">Analytics</h1>
+      <p class="page-desc">Accuracy, Perplexity, and Dataset-Size Experiments</p>
+    </div>
+    <button class="btn-primary" onclick="loadAll()">
+      <span class="btn-icon">↻</span> Load Results
+    </button>
+  </div>
+</div>
+
+<!-- ── MODEL COMPARISON CARDS ── -->
+<div class="three-col" id="modelCompareCards">
+  <div class="glass-card model-card loading-skeleton">Loading…</div>
+  <div class="glass-card model-card loading-skeleton">Loading…</div>
+  <div class="glass-card model-card loading-skeleton">Loading…</div>
+</div>
+
+<!-- ── ACCURACY CHART ── -->
+<div class="two-col">
+  <div class="glass-card">
+    <div class="card-title-row">
+      <h3 class="card-title">Accuracy Comparison</h3>
+      <span class="card-badge">Top-1 &amp; Top-3</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="accuracyChart"></canvas>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <div class="card-title-row">
+      <h3 class="card-title">Perplexity Comparison</h3>
+      <span class="card-badge">Lower = Better</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="perplexityChart"></canvas>
+    </div>
+    <p class="card-desc" style="margin-top:12px">
+      <strong>Perplexity</strong> = 2^(−average log₂ probability). 
+      A model with perplexity k behaves as if choosing uniformly from k words.
+      Lower is better.
+    </p>
+  </div>
+</div>
+
+<!-- ── DATASET SIZE EXPERIMENT ── -->
+<div class="glass-card">
+  <div class="card-title-row">
+    <h3 class="card-title">Dataset Size Experiment</h3>
+    <span class="card-badge">BTech Experiment</span>
+  </div>
+  <p class="card-desc">
+    Training on 10%, 25%, 50%, 75%, 100% of the corpus.
+    Shows how accuracy improves as training data grows — and where overfitting begins.
+  </p>
+
+  <div id="experimentLoading" class="loading-row">
+    <div class="spinner"></div> Running experiments…
+  </div>
+
+  <div id="experimentContent" style="display:none">
+    <div class="chart-wrap tall">
+      <canvas id="expChart"></canvas>
+    </div>
+    <div class="exp-table-wrap">
+      <table class="exp-table" id="expTable">
+        <thead>
+          <tr>
+            <th>Dataset %</th>
+            <th>Vocab</th>
+            <th>Bigrams</th>
+            <th>Sparsity %</th>
+            <th>Uni Top-1</th>
+            <th>Bi Top-1</th>
+            <th>Tri Top-1</th>
+            <th>Bi Top-3</th>
+            <th>Tri Top-3</th>
+            <th>PP Bigram</th>
+          </tr>
+        </thead>
+        <tbody id="expTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── ANALYSIS TEXT ── -->
+<div class="two-col">
+  <div class="glass-card">
+    <div class="card-title-row">
+      <h3 class="card-title">Effect of Model Order</h3>
+      <span class="card-badge">Analysis</span>
+    </div>
+    <div class="analysis-bullets">
+      <div class="bullet">
+        <span class="bullet-dot amber"></span>
+        <div><strong>Unigram</strong> — ignores word order. Predicts the most common word regardless of context. Lowest accuracy but always has a prediction.</div>
+      </div>
+      <div class="bullet">
+        <span class="bullet-dot violet"></span>
+        <div><strong>Bigram</strong> — uses 1 previous word. Captures local word-pair patterns. Good balance of accuracy and coverage.</div>
+      </div>
+      <div class="bullet">
+        <span class="bullet-dot amber"></span>
+        <div><strong>Trigram</strong> — uses 2 previous words. More context = better accuracy on seen data. BUT very sparse — needs smoothing more than bigrams.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <div class="card-title-row">
+      <h3 class="card-title">Smoothing Effect</h3>
+      <span class="card-badge">Laplace Add-1</span>
+    </div>
+    <div class="analysis-bullets">
+      <div class="bullet">
+        <span class="bullet-dot violet"></span>
+        <div><strong>Without smoothing</strong>: P=0 for any unseen bigram. Perplexity = ∞ on test text. Model completely fails on new word combinations.</div>
+      </div>
+      <div class="bullet">
+        <span class="bullet-dot amber"></span>
+        <div><strong>With Laplace smoothing</strong>: Every possible word pair gets a small probability. Perplexity is finite. Model gracefully handles unseen contexts.</div>
+      </div>
+      <div class="bullet">
+        <span class="bullet-dot violet"></span>
+        <div><strong>Limitation</strong>: Add-1 can over-smooth with large vocabularies — too much probability mass given to unseen pairs. Advanced methods like Kneser-Ney fix this.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TRANSITION MATRIX ── -->
+<div class="glass-card">
+  <div class="card-title-row">
+    <h3 class="card-title">Bigram Transition Probability Matrix</h3>
+    <span class="card-badge">P(w₂ | w₁)</span>
+  </div>
+  <p class="card-desc">Each cell = P(column word | row word). Smoothed probabilities. Row sums ≈ 1.</p>
+  <div class="matrix-scroll" id="transitionMatrix"></div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', loadAll);
+
+async function loadAll() {
+  loadAnalytics();
+  loadExperiment();
+}
+
+async function loadAnalytics() {
+  try {
+    const data = await apiGet('/api/analytics');
+    const mc   = data.model_comparison;
+
+    // Model comparison cards
+    renderModelCards(mc);
+
+    // Accuracy chart
+    buildGroupedBarChart('accuracyChart',
+      ['Unigram', 'Bigram', 'Trigram'],
+      [
+        { label: 'Top-1 Accuracy %', data: [mc.unigram.top1_accuracy, mc.bigram.top1_accuracy, mc.trigram.top1_accuracy], color: '#D6A34A' },
+        { label: 'Top-3 Accuracy %', data: [mc.unigram.top3_accuracy, mc.bigram.top3_accuracy, mc.trigram.top3_accuracy], color: '#9B8AFB' },
+      ]
+    );
+
+    // Perplexity chart
+    buildBarChart('perplexityChart',
+      ['Unigram', 'Bigram', 'Trigram'],
+      [mc.unigram.perplexity, mc.bigram.perplexity, mc.trigram.perplexity],
+      'Perplexity (lower = better)',
+      '#9B8AFB'
+    );
+
+    // Transition matrix
+    if (data.transition_matrix) {
+      renderMatrix(data.transition_matrix);
+    }
+  } catch(e) {
+    console.error('Analytics load error:', e);
+  }
+}
+
+function renderModelCards(mc) {
+  const orders = ['unigram', 'bigram', 'trigram'];
+  const labels = ['Unigram', 'Bigram', 'Trigram'];
+  const icons  = ['U', 'B', 'T'];
+  const container = document.getElementById('modelCompareCards');
+
+  container.innerHTML = orders.map((ord, i) => {
+    const m = mc[ord];
+    return `
+      <div class="glass-card model-card">
+        <div class="model-card-header">
+          <div class="model-icon ${i===1?'violet':'amber'}">${icons[i]}</div>
+          <h3>${labels[i]} Model</h3>
+        </div>
+        <div class="model-metrics">
+          <div class="metric"><span class="metric-val amber-text">${m.top1_accuracy}%</span><span class="metric-label">Top-1 Accuracy</span></div>
+          <div class="metric"><span class="metric-val violet-text">${m.top3_accuracy}%</span><span class="metric-label">Top-3 Accuracy</span></div>
+          <div class="metric"><span class="metric-val">${m.perplexity}</span><span class="metric-label">Perplexity</span></div>
+          <div class="metric"><span class="metric-val">${m.avg_pred_time_ms} ms</span><span class="metric-label">Avg Pred Time</span></div>
+        </div>
+        <div class="model-ngrams">
+          <div class="mn-label">Top 3 ${labels[i]}s:</div>
+          ${m.top_ngrams.slice(0,3).map(([ng,c]) => `
+            <div class="mn-item"><span class="mn-text">${ng}</span><span class="mn-cnt">×${c}</span></div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function loadExperiment() {
+  try {
+    const data = await apiGet('/api/experiment');
+    document.getElementById('experimentLoading').style.display = 'none';
+    document.getElementById('experimentContent').style.display = 'block';
+
+    const exps   = data.experiments;
+    const labels = exps.map(e => e.percent_label);
+
+    buildMultiLineChart('expChart', labels, [
+      { label: 'Bigram Top-1 %',  data: exps.map(e => e.bigram_top1  || 0), color: '#D6A34A' },
+      { label: 'Trigram Top-1 %', data: exps.map(e => e.trigram_top1 || 0), color: '#9B8AFB' },
+      { label: 'Bigram Top-3 %',  data: exps.map(e => e.bigram_top3  || 0), color: 'rgba(214,163,74,0.5)' },
+      { label: 'Trigram Top-3 %', data: exps.map(e => e.trigram_top3 || 0), color: 'rgba(155,138,251,0.5)' },
+    ]);
+
+    // Table
+    const tbody = document.getElementById('expTableBody');
+    tbody.innerHTML = exps.map(e => `
+      <tr>
+        <td><strong>${e.percent_label}</strong></td>
+        <td>${(e.vocab_size||0).toLocaleString()}</td>
+        <td>${(e.unique_bigrams||0).toLocaleString()}</td>
+        <td>${e.bigram_sparsity || '–'}%</td>
+        <td class="amber-text">${e.unigram_top1 || 0}%</td>
+        <td class="amber-text">${e.bigram_top1 || 0}%</td>
+        <td class="amber-text">${e.trigram_top1 || 0}%</td>
+        <td class="violet-text">${e.bigram_top3 || 0}%</td>
+        <td class="violet-text">${e.trigram_top3 || 0}%</td>
+        <td>${e.perplexity_bigram || '–'}</td>
+      </tr>
+    `).join('');
+  } catch(e) {
+    document.getElementById('experimentLoading').textContent = 'Experiment failed: ' + e.message;
+    console.error(e);
+  }
+}
+
+function renderMatrix(matrix) {
+  const words = matrix.words;
+  const mat   = matrix.smooth_matrix;
+  const el    = document.getElementById('transitionMatrix');
+
+  if (!words || words.length === 0) {
+    el.textContent = 'No matrix data.';
+    return;
+  }
+
+  let html = '<table class="matrix-table"><thead><tr><th>w₁ \\ w₂</th>';
+  words.forEach(w => { html += `<th>${w}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  words.forEach(w1 => {
+    html += `<tr><th>${w1}</th>`;
+    words.forEach(w2 => {
+      const p   = mat[w1]?.[w2] || 0;
+      const pct = Math.round(p * 10000) / 100;
+      const bg  = p > 0.01 ? `rgba(214,163,74,${Math.min(p * 5, 0.6)})` : 'transparent';
+      html += `<td style="background:${bg}" title="P(${w2}|${w1}) = ${p.toFixed(6)}">${pct > 0 ? pct.toFixed(2) + '%' : '–'}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+</script>
+{% endblock %}

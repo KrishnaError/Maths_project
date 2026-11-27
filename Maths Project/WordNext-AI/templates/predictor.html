@@ -1,0 +1,406 @@
+{% extends "base.html" %}
+{% block title %}Live Predictor — WordNext AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-inner">
+    <div>
+      <div class="page-eyebrow">Type &amp; Predict</div>
+      <h1 class="page-title">Live Predictor</h1>
+      <p class="page-desc">Automatic predictions appear as you type — 350ms debounce</p>
+    </div>
+    <div class="model-selector">
+      <label class="model-label">Model Order:</label>
+      <div class="model-btn-group">
+        <button class="model-btn" data-order="unigram"  onclick="setModelOrder('unigram')">Unigram</button>
+        <button class="model-btn" data-order="bigram"   onclick="setModelOrder('bigram')">Bigram</button>
+        <button class="model-btn active" data-order="trigram" onclick="setModelOrder('trigram')">Trigram</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── PREDICTOR MAIN AREA ── -->
+<div class="predictor-layout">
+
+  <!-- Left: Input -->
+  <div class="glass-card predictor-input-card">
+    <div class="card-title-row">
+      <h3 class="card-title">Type Your Text</h3>
+      <div class="pred-status" id="predStatus">
+        <span class="status-dot idle"></span>
+        <span id="statusText">Ready</span>
+      </div>
+    </div>
+
+    <div class="textarea-container">
+      <textarea
+        id="predInput"
+        class="pred-textarea"
+        placeholder="Start typing… e.g. 'the probability' or 'machine learning is' or 'statistics helps'&#10;&#10;Predictions update automatically as you type."
+        rows="7"
+        oninput="onInputChange()"
+      ></textarea>
+      <div class="char-count" id="charCount">0 chars</div>
+    </div>
+
+    <!-- Quick example chips -->
+    <div class="chip-label">Quick Examples:</div>
+    <div class="chip-row">
+      <button class="chip" onclick="setInput('the probability')">the probability</button>
+      <button class="chip" onclick="setInput('machine learning is')">machine learning is</button>
+      <button class="chip" onclick="setInput('statistics helps us')">statistics helps us</button>
+      <button class="chip" onclick="setInput('the markov chain is')">the markov chain is</button>
+      <button class="chip" onclick="setInput('data science involves')">data science involves</button>
+      <button class="chip" onclick="setInput('hypothesis testing is')">hypothesis testing is</button>
+      <button class="chip" onclick="setInput('the normal distribution')">the normal distribution</button>
+      <button class="chip" onclick="setInput('natural language processing')">natural language processing</button>
+    </div>
+
+    <!-- Context info -->
+    <div class="context-pill" id="contextPill" style="display:none">
+      <span class="cp-label">Context used:</span>
+      <span id="cpWords"></span>
+      <span class="cp-model" id="cpModel"></span>
+    </div>
+  </div>
+
+  <!-- Right: Predictions -->
+  <div class="glass-card predictor-output-card">
+    <div class="card-title-row">
+      <h3 class="card-title">Top 3 Predictions</h3>
+      <span class="card-badge" id="modelBadge">Trigram</span>
+    </div>
+
+    <div id="predEmpty" class="pred-empty">
+      <div class="empty-glyph">⟡</div>
+      <p>Predictions appear as you type</p>
+      <p class="empty-hint">Uses the last 2 words as Markov context</p>
+    </div>
+
+    <div id="predResults" style="display:none">
+      <div class="pred-cards" id="predCards"></div>
+
+      <!-- Probability comparison bar -->
+      <div class="prob-chart-label">Probability Comparison</div>
+      <div class="prob-mini-chart" id="probMiniChart"></div>
+    </div>
+
+    <!-- Loading spinner -->
+    <div id="predLoading" class="pred-loading" style="display:none">
+      <div class="spinner"></div>
+      <span>Predicting…</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── SENTENCE GENERATOR ── -->
+<div class="glass-card">
+  <div class="card-title-row">
+    <h3 class="card-title">Sentence Generator</h3>
+    <span class="card-badge">Markov Sampling</span>
+  </div>
+  <p class="card-desc">
+    Uses weighted random sampling based on transition probabilities — the Markov property in action.
+  </p>
+  <div class="gen-controls">
+    <input type="text" id="genSeed" class="gen-input" placeholder="Seed word (optional)…" />
+    <div class="gen-slider-wrap">
+      <label class="gen-slider-label">Max Words: <strong id="maxWordsVal">20</strong></label>
+      <input type="range" id="maxWordsSlider" min="5" max="40" value="20"
+             oninput="document.getElementById('maxWordsVal').textContent=this.value" />
+    </div>
+    <button class="btn-primary" onclick="generateSentences()">
+      <span>Generate ×3</span>
+    </button>
+  </div>
+  <div id="genOutput" class="gen-output"></div>
+</div>
+
+<!-- ── ADD MY TEXT TO TRAINING ── -->
+<div class="glass-card train-card">
+  <div class="card-title-row">
+    <h3 class="card-title">➕ Add My Text to Training</h3>
+    <span class="card-badge" id="trainBadge">Improve Predictions</span>
+  </div>
+  <p class="card-desc">
+    Type your own sentences here — the model will learn from them and your words will start appearing as predictions.
+    For example: <em>"I am studying statistics"</em> → next time you type "I am", it will suggest "studying".
+  </p>
+
+  <div class="train-input-wrap">
+    <textarea
+      id="trainTextInput"
+      class="pred-textarea"
+      rows="5"
+      placeholder="Type or paste your sentences here...&#10;&#10;Example:&#10;I am learning statistics and probability this year.&#10;I want to understand Markov chains better.&#10;The next word predictor is very useful for me.&#10;I am studying for my BTech examinations."
+    ></textarea>
+    <div class="train-hint">Write full sentences. The more you add, the better the predictions for your words.</div>
+  </div>
+
+  <div class="train-btn-row">
+    <button class="btn-primary" onclick="addMyText()" id="addTextBtn">
+      <span class="btn-icon">➕</span> Add to Training &amp; Retrain
+    </button>
+    <button class="btn-ghost-sm" onclick="document.getElementById('trainTextInput').value=''">Clear</button>
+    <div class="train-status" id="trainStatus"></div>
+  </div>
+
+  <div id="trainResult" style="display:none" class="train-result"></div>
+</div>
+
+<!-- ── MATH EXPLANATION ── -->
+<div class="glass-card">
+  <div class="card-title-row">
+    <h3 class="card-title">How Prediction Works</h3>
+    <span class="card-badge">Theory</span>
+  </div>
+  <div class="how-it-works">
+    <div class="hiw-step">
+      <div class="hiw-num">1</div>
+      <div class="hiw-text">
+        <strong>Extract Context</strong><br>
+        The last 2 words from your input become the Markov context (w₁, w₂).
+      </div>
+    </div>
+    <div class="hiw-step">
+      <div class="hiw-num">2</div>
+      <div class="hiw-text">
+        <strong>Trigram Lookup</strong><br>
+        Find all words w₃ seen after (w₁, w₂) in training.
+        Compute P(w₃|w₁,w₂) using Laplace smoothing.
+      </div>
+    </div>
+    <div class="hiw-step">
+      <div class="hiw-num">3</div>
+      <div class="hiw-text">
+        <strong>Backoff if Sparse</strong><br>
+        If no trigram found → try bigram P(w₃|w₂) → else use unigram P(w₃).
+      </div>
+    </div>
+    <div class="hiw-step">
+      <div class="hiw-num">4</div>
+      <div class="hiw-text">
+        <strong>Return Top 3</strong><br>
+        Sort all candidates by probability. Return rank 1, 2, 3.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+let currentModelOrder = 'trigram';
+let debounceTimer     = null;
+const DEBOUNCE_MS     = 350;
+
+function setModelOrder(order) {
+  currentModelOrder = order;
+  document.querySelectorAll('.model-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.order === order);
+  });
+  document.getElementById('modelBadge').textContent =
+    order.charAt(0).toUpperCase() + order.slice(1);
+
+  // Re-predict with new order
+  triggerPrediction();
+}
+
+function setInput(text) {
+  document.getElementById('predInput').value = text;
+  updateCharCount();
+  triggerPrediction();
+}
+
+function updateCharCount() {
+  const len = document.getElementById('predInput').value.length;
+  document.getElementById('charCount').textContent = len + ' chars';
+}
+
+function onInputChange() {
+  updateCharCount();
+  clearTimeout(debounceTimer);
+  setStatus('typing');
+  debounceTimer = setTimeout(triggerPrediction, DEBOUNCE_MS);
+}
+
+function setStatus(state) {
+  const dot  = document.querySelector('.status-dot');
+  const text = document.getElementById('statusText');
+  dot.className = 'status-dot ' + state;
+  const labels = { idle: 'Ready', typing: 'Typing…', loading: 'Predicting…', done: 'Done' };
+  text.textContent = labels[state] || state;
+}
+
+async function triggerPrediction() {
+  const context = document.getElementById('predInput').value.trim();
+
+  if (!context) {
+    document.getElementById('predEmpty').style.display   = 'flex';
+    document.getElementById('predResults').style.display = 'none';
+    document.getElementById('contextPill').style.display = 'none';
+    setStatus('idle');
+    return;
+  }
+
+  setStatus('loading');
+  document.getElementById('predLoading').style.display  = 'flex';
+  document.getElementById('predResults').style.display  = 'none';
+  document.getElementById('predEmpty').style.display    = 'none';
+
+  try {
+    const data = await apiPost('/api/predict', {
+      context:     context,
+      model_order: currentModelOrder,
+    });
+
+    document.getElementById('predLoading').style.display = 'none';
+
+    if (data.predictions && data.predictions.length > 0) {
+      renderPredictions(data.predictions);
+      document.getElementById('predResults').style.display = 'block';
+      showContextPill(data.predictions[0]);
+    } else {
+      document.getElementById('predEmpty').style.display = 'flex';
+    }
+    setStatus('done');
+  } catch(e) {
+    document.getElementById('predLoading').style.display = 'none';
+    setStatus('idle');
+    console.error(e);
+  }
+}
+
+function renderPredictions(preds) {
+  const container = document.getElementById('predCards');
+  const colors    = ['amber', 'violet', 'amber-dim'];
+  const icons     = ['🥇', '🥈', '🥉'];
+  const maxProb   = preds[0].probability;
+
+  container.innerHTML = preds.map((p, i) => {
+    const pct    = maxProb > 0 ? (p.probability / maxProb * 100).toFixed(0) : 0;
+    return `
+      <div class="pred-card ${colors[i]}" onclick="appendWord('${p.word}')">
+        <div class="pred-medal">${icons[i]}</div>
+        <div class="pred-word-block">
+          <div class="pred-word">${p.word}</div>
+          <div class="pred-model-tag">${p.model_used.replace('_', ' ')}</div>
+        </div>
+        <div class="pred-prob-block">
+          <div class="pred-pct">${p.percent.toFixed(3)}%</div>
+          <div class="pred-raw">P = ${p.probability.toFixed(6)}</div>
+          <div class="pred-bar-bg">
+            <div class="pred-bar" style="width:${pct}%"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Mini prob chart
+  const chartEl = document.getElementById('probMiniChart');
+  chartEl.innerHTML = preds.map((p, i) => `
+    <div class="mini-row">
+      <span class="mini-word">${p.word}</span>
+      <div class="mini-bar-bg">
+        <div class="mini-bar" style="width:${p.percent > 0 ? Math.min(p.percent * 10, 100) : 2}%;
+             background:${i===0?'#D6A34A':i===1?'#9B8AFB':'rgba(214,163,74,0.4)'}"></div>
+      </div>
+      <span class="mini-pct">${p.percent.toFixed(3)}%</span>
+    </div>
+  `).join('');
+}
+
+function showContextPill(pred) {
+  const pill = document.getElementById('contextPill');
+  const words = document.getElementById('cpWords');
+  const model = document.getElementById('cpModel');
+
+  const ctx = [pred.context_w1, pred.context_w2].filter(w => w && w !== '<START>');
+  words.innerHTML = ctx.map(w => `<span class="cp-word">${w}</span>`).join('');
+  model.textContent = '→ ' + pred.model_used.replace('_', ' ');
+  pill.style.display = 'flex';
+}
+
+function appendWord(word) {
+  const ta  = document.getElementById('predInput');
+  const val = ta.value.trim();
+  ta.value  = val ? val + ' ' + word : word;
+  updateCharCount();
+  triggerPrediction();
+  showToast('Added: ' + word, 'success');
+}
+
+async function generateSentences() {
+  const seed      = document.getElementById('genSeed').value.trim();
+  const maxWords  = parseInt(document.getElementById('maxWordsSlider').value);
+
+  const data = await apiPost('/api/generate', {
+    seed, max_words: maxWords, model_order: currentModelOrder, count: 3
+  });
+
+  const out = document.getElementById('genOutput');
+  if (data.sentences) {
+    out.innerHTML = data.sentences.map((s, i) => `
+      <div class="gen-sentence">
+        <span class="gen-num">${i+1}</span>
+        <span class="gen-text">${s}</span>
+      </div>
+    `).join('');
+  }
+}
+
+async function addMyText() {
+  const text   = document.getElementById('trainTextInput').value.trim();
+  const btn    = document.getElementById('addTextBtn');
+  const status = document.getElementById('trainStatus');
+  const result = document.getElementById('trainResult');
+
+  if (!text) {
+    showToast('Please write some sentences first.', 'error');
+    return;
+  }
+  if (text.length < 10) {
+    showToast('Write at least one full sentence.', 'error');
+    return;
+  }
+
+  btn.disabled    = true;
+  btn.textContent = 'Adding & Retraining…';
+  status.textContent = '';
+  result.style.display = 'none';
+
+  try {
+    const data = await apiPost('/api/add_text', { text });
+
+    btn.disabled    = false;
+    btn.innerHTML   = '<span class="btn-icon">➕</span> Add to Training & Retrain';
+
+    if (data.success) {
+      showToast('✅ Text added! Model retrained.', 'success');
+      status.textContent = `✅ ${data.chars_added} chars added. Vocab: ${data.stats.vocab_size} words.`;
+      result.style.display = 'block';
+      result.innerHTML = `
+        <div class="train-success">
+          <strong>✅ Model updated!</strong><br>
+          New vocabulary: <strong>${data.stats.vocab_size.toLocaleString()}</strong> words ·
+          Bigrams: <strong>${data.stats.unique_bigrams.toLocaleString()}</strong> ·
+          Trigrams: <strong>${data.stats.unique_trigrams.toLocaleString()}</strong><br>
+          <small>Now try typing your words in the predictor above — they should appear in suggestions!</small>
+        </div>
+      `;
+      // Clear the input
+      document.getElementById('trainTextInput').value = '';
+    } else {
+      showToast('Error: ' + data.error, 'error');
+      status.textContent = '❌ ' + data.error;
+    }
+  } catch(e) {
+    btn.disabled    = false;
+    btn.innerHTML   = '<span class="btn-icon">➕</span> Add to Training & Retrain';
+    showToast('Request failed: ' + e.message, 'error');
+  }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,459 @@
+{% extends "base.html" %}
+{% block title %}DBMS vs DSA — WordNext AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-inner">
+    <div>
+      <div class="page-eyebrow">Performance Analysis</div>
+      <h1 class="page-title">DBMS vs DSA</h1>
+      <p class="page-desc">SQLite · Hash Map · Trie — query speed, memory &amp; complexity</p>
+    </div>
+    <button class="btn-primary" onclick="runBenchmark()">
+      <span class="btn-icon">⚡</span> Run Benchmark
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     3 STRUCTURE CARDS
+══════════════════════════════════════════════════ -->
+<div class="three-col">
+
+  <div class="glass-card ds-card">
+    <div class="ds-icon amber">🗄️</div>
+    <h3 class="ds-title">SQLite</h3>
+    <div class="ds-type-badge">DBMS</div>
+    <div class="ds-props">
+      <div class="ds-prop"><span class="dp-k">Type</span><span class="dp-v">Relational DB (B-Tree)</span></div>
+      <div class="ds-prop"><span class="dp-k">Lookup</span><span class="dp-v">O(log N) with index</span></div>
+      <div class="ds-prop"><span class="dp-k">Insert</span><span class="dp-v">O(log N)</span></div>
+      <div class="ds-prop"><span class="dp-k">Persistence</span><span class="dp-v dp-yes">● File-based (yes)</span></div>
+      <div class="ds-prop"><span class="dp-k">SQL Queries</span><span class="dp-v dp-yes">● Supported</span></div>
+    </div>
+    <div class="ds-use">Best for: Persistent storage, complex queries, multi-table joins</div>
+  </div>
+
+  <div class="glass-card ds-card">
+    <div class="ds-icon violet">🗂️</div>
+    <h3 class="ds-title">Hash Map</h3>
+    <div class="ds-type-badge violet-badge">DSA</div>
+    <div class="ds-props">
+      <div class="ds-prop"><span class="dp-k">Type</span><span class="dp-v">Hash Table (Python dict)</span></div>
+      <div class="ds-prop"><span class="dp-k">Lookup</span><span class="dp-v">O(1) average</span></div>
+      <div class="ds-prop"><span class="dp-k">Insert</span><span class="dp-v">O(1) amortized</span></div>
+      <div class="ds-prop"><span class="dp-k">Persistence</span><span class="dp-v dp-no">● RAM only</span></div>
+      <div class="ds-prop"><span class="dp-k">Prefix Search</span><span class="dp-v dp-no">● Not supported</span></div>
+    </div>
+    <div class="ds-use">Best for: Fast in-memory lookups, single-key retrieval</div>
+  </div>
+
+  <div class="glass-card ds-card">
+    <div class="ds-icon amber">🌲</div>
+    <h3 class="ds-title">Trie</h3>
+    <div class="ds-type-badge">DSA</div>
+    <div class="ds-props">
+      <div class="ds-prop"><span class="dp-k">Type</span><span class="dp-v">Prefix Tree (manual)</span></div>
+      <div class="ds-prop"><span class="dp-k">Lookup</span><span class="dp-v">O(m) where m=prefix len</span></div>
+      <div class="ds-prop"><span class="dp-k">Insert</span><span class="dp-v">O(m)</span></div>
+      <div class="ds-prop"><span class="dp-k">Persistence</span><span class="dp-v dp-no">● RAM only</span></div>
+      <div class="ds-prop"><span class="dp-k">Prefix Search</span><span class="dp-v dp-yes">● Natively supported</span></div>
+    </div>
+    <div class="ds-use">Best for: Prefix search, autocomplete, shared-prefix compression</div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     LIVE BENCHMARK RESULTS
+══════════════════════════════════════════════════ -->
+<div class="glass-card">
+  <div class="card-title-row">
+    <h3 class="card-title">⚡ Live Benchmark Results</h3>
+    <span class="card-badge" id="benchStatus">Click Run Benchmark</span>
+  </div>
+  <p class="card-desc">
+    Real measured performance on this machine. Each timing averaged over 20 repeated queries.
+    Results vary with hardware and dataset size — no hardcoded values.
+  </p>
+
+  <div id="benchLoading" class="loading-row" style="display:none">
+    <div class="spinner"></div> Running benchmark…
+  </div>
+
+  <div id="benchResults" style="display:none">
+    <div class="bench-table-wrap">
+      <table class="bench-table">
+        <thead>
+          <tr>
+            <th>Backend</th>
+            <th>Insert Time</th>
+            <th>Bigram Query</th>
+            <th>Trigram Query</th>
+            <th>Memory Est.</th>
+            <th>Bigram Rows</th>
+            <th>Trigram Rows</th>
+          </tr>
+        </thead>
+        <tbody id="benchTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="two-col" style="margin-top:20px">
+      <div>
+        <div class="chart-sub-label">Insert Time (ms)</div>
+        <div class="chart-wrap short"><canvas id="insertChart"></canvas></div>
+      </div>
+      <div>
+        <div class="chart-sub-label">Bigram Query Time (ms)</div>
+        <div class="chart-wrap short"><canvas id="queryChart"></canvas></div>
+      </div>
+    </div>
+
+    <div style="margin-top:16px">
+      <div class="chart-sub-label">Memory Estimate (KB)</div>
+      <div class="chart-wrap short"><canvas id="memChart"></canvas></div>
+    </div>
+
+    <div id="benchNotes" class="bench-notes" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     COMPLEXITY TABLE
+══════════════════════════════════════════════════ -->
+<div class="glass-card">
+  <div class="card-title-row">
+    <h3 class="card-title">Algorithm Complexity Reference</h3>
+    <span class="card-badge">Big-O Notation</span>
+  </div>
+  <div class="complexity-table-wrap">
+    <table class="bench-table">
+      <thead>
+        <tr><th>Operation</th><th>Structure</th><th>Time (Avg)</th><th>Time (Worst)</th><th>Space</th><th>Notes</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Unigram Count</td><td>Counter</td><td class="amber-text">O(N)</td><td>O(N)</td><td>O(V)</td><td>N=tokens, V=vocab</td></tr>
+        <tr><td>Bigram Build</td><td>dict of Counter</td><td class="amber-text">O(N)</td><td>O(N)</td><td>O(V²) worst</td><td>Sparse in practice</td></tr>
+        <tr><td>Trigram Build</td><td>dict of Counter</td><td class="amber-text">O(N)</td><td>O(N)</td><td>O(V³) worst</td><td>Very sparse</td></tr>
+        <tr><td>HashMap Lookup</td><td>Python dict</td><td class="violet-text">O(1)</td><td>O(N)</td><td>O(entries)</td><td>Hash collision rare</td></tr>
+        <tr><td>Trie Lookup</td><td>Trie Node tree</td><td class="violet-text">O(m)</td><td>O(m)</td><td>O(N·m)</td><td>m=prefix length</td></tr>
+        <tr><td>SQLite (indexed)</td><td>B-Tree index</td><td class="amber-text">O(log N)</td><td>O(log N)</td><td>O(N)</td><td>Includes I/O overhead</td></tr>
+        <tr><td>Top-3 Prediction</td><td>Sort candidates</td><td class="violet-text">O(C log C)</td><td>O(C log C)</td><td>O(C)</td><td>C=candidate count</td></tr>
+        <tr><td>Perplexity</td><td>Scan tokens</td><td class="amber-text">O(N)</td><td>O(N)</td><td>O(1)</td><td>N=test tokens</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     TRIE VISUAL + SQLITE SCHEMA  (ONCE only)
+══════════════════════════════════════════════════ -->
+<div class="two-col">
+
+  <div class="glass-card">
+    <div class="card-title-row">
+      <h3 class="card-title">🌲 Trie Structure — Visual</h3>
+      <span class="card-badge">How it works</span>
+    </div>
+    <p class="card-desc">
+      Bigram <span class="mono amber-text">"statistics" → "helps"</span> is stored as a path in the tree:
+    </p>
+    <div class="trie-visual">
+      <div class="tv-node root">ROOT</div>
+      <div class="tv-arrow">↓  (follow "statistics")</div>
+      <div class="tv-node">"statistics"  <span style="font-size:10px;color:var(--text-s)">(is_end = True)</span></div>
+      <div class="tv-arrow">↓  (read next_words)</div>
+      <div class="tv-next-words">next_words: { "helps": 3, "involves": 1, "and": 2 }</div>
+    </div>
+    <p class="card-desc" style="margin-top:14px">
+      Trigram <span class="mono amber-text">"data science"</span> → traverse <strong>two</strong> levels:<br>
+      root → "data" → "science" → next_words
+    </p>
+    <div class="trie-visual" style="margin-top:8px">
+      <div class="tv-node root">ROOT</div>
+      <div class="tv-arrow">↓</div>
+      <div class="tv-node">"data"</div>
+      <div class="tv-arrow">↓</div>
+      <div class="tv-node">"science"  <span style="font-size:10px;color:var(--text-s)">(is_end = True)</span></div>
+      <div class="tv-arrow">↓</div>
+      <div class="tv-next-words">next_words: { "involves": 2, "is": 1 }</div>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <div class="card-title-row">
+      <h3 class="card-title">🗄️ SQLite Schema &amp; Queries</h3>
+      <span class="card-badge">Tables &amp; Indexes</span>
+    </div>
+    <div class="sql-block">
+<pre>-- N-gram counts stored in 3 tables
+
+CREATE TABLE unigrams (
+  word  TEXT PRIMARY KEY,
+  count INTEGER
+);
+
+CREATE TABLE bigrams (
+  w1    TEXT NOT NULL,
+  w2    TEXT NOT NULL,
+  count INTEGER,
+  PRIMARY KEY (w1, w2)
+);
+CREATE INDEX idx_bigrams_w1
+  ON bigrams (w1);
+
+CREATE TABLE trigrams (
+  w1 TEXT, w2 TEXT, w3 TEXT,
+  count INTEGER,
+  PRIMARY KEY (w1, w2, w3)
+);
+CREATE INDEX idx_trigrams_w1w2
+  ON trigrams (w1, w2);
+
+-- Query: What comes after "statistics"?
+SELECT w2, count
+FROM   bigrams
+WHERE  w1 = 'statistics'
+ORDER  BY count DESC;</pre>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     SQLITE LIVE DATABASE VIEWER
+══════════════════════════════════════════════════ -->
+<div class="glass-card db-viewer-card">
+  <div class="card-title-row">
+    <h3 class="card-title">🗄️ SQLite Live Database Viewer</h3>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="db-file-badge">📁 wordnext.db</span>
+      <button class="btn-primary" onclick="loadDBViewer()" style="padding:7px 14px;font-size:12px">
+        Load Database
+      </button>
+    </div>
+  </div>
+  <p class="card-desc">
+    Actual rows from the SQLite database — same data that powers every prediction.
+    See what's inside without any extra software.
+  </p>
+
+  <div id="dbViewerLoading" class="loading-row" style="display:none">
+    <div class="spinner"></div> Reading database…
+  </div>
+
+  <div id="dbViewerContent" style="display:none">
+
+    <div class="db-summary" id="dbSummary"></div>
+
+    <div class="db-tabs">
+      <button class="db-tab active" onclick="showDBTab('unigrams', this)">unigrams</button>
+      <button class="db-tab"        onclick="showDBTab('bigrams',  this)">bigrams</button>
+      <button class="db-tab"        onclick="showDBTab('trigrams', this)">trigrams</button>
+      <button class="db-tab"        onclick="showDBTab('queries',  this)">sample SQL</button>
+    </div>
+
+    <div class="db-panel active" id="dbt-unigrams">
+      <div class="db-panel-desc">
+        <strong>unigrams</strong> — how many times each word appears.
+        Used for P(w) = count(w) / total_tokens.
+      </div>
+      <div class="db-table-wrap">
+        <table class="db-table">
+          <thead><tr><th>#</th><th>word</th><th>count</th><th>frequency %</th></tr></thead>
+          <tbody id="dbt-unigrams-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="db-panel" id="dbt-bigrams">
+      <div class="db-panel-desc">
+        <strong>bigrams</strong> — count of word pairs (w1 → w2).
+        Used for P(w2|w1) = count(w1,w2) / count(w1). Index on w1 makes this fast.
+      </div>
+      <div class="db-table-wrap">
+        <table class="db-table">
+          <thead><tr><th>#</th><th>w1 (context)</th><th>w2 (next word)</th><th>count</th></tr></thead>
+          <tbody id="dbt-bigrams-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="db-panel" id="dbt-trigrams">
+      <div class="db-panel-desc">
+        <strong>trigrams</strong> — count of 3-word sequences (w1, w2 → w3).
+        Used for P(w3|w1,w2). Index on (w1,w2) makes prefix lookup fast.
+      </div>
+      <div class="db-table-wrap">
+        <table class="db-table">
+          <thead><tr><th>#</th><th>w1</th><th>w2 (context)</th><th>w3 (predicted)</th><th>count</th></tr></thead>
+          <tbody id="dbt-trigrams-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="db-panel" id="dbt-queries">
+      <div class="db-panel-desc">
+        <strong>Sample SQL queries</strong> run live on the database — with real results.
+      </div>
+      <div id="sql-queries-list"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // Both run on page load — benchmark fast now (20 trials instead of 50)
+  runBenchmark();
+  loadDBViewer();
+});
+
+// ════════════════════════
+//  BENCHMARK
+// ════════════════════════
+async function runBenchmark() {
+  document.getElementById('benchLoading').style.display  = 'flex';
+  document.getElementById('benchResults').style.display  = 'none';
+  document.getElementById('benchStatus').textContent     = 'Running…';
+
+  try {
+    const data = await apiGet('/api/benchmark');
+    const bm   = data.benchmark;
+
+    document.getElementById('benchLoading').style.display = 'none';
+    document.getElementById('benchResults').style.display = 'block';
+    document.getElementById('benchStatus').textContent    = '✅ Complete';
+
+    const backends = [
+      { key: 'sqlite',  label: 'SQLite',  icon: '🗄️' },
+      { key: 'hashmap', label: 'HashMap', icon: '🗂️' },
+      { key: 'trie',    label: 'Trie',    icon: '🌲' },
+    ];
+
+    document.getElementById('benchTableBody').innerHTML = backends.map(b => {
+      const r = bm[b.key];
+      return `<tr>
+        <td><strong>${b.icon} ${b.label}</strong></td>
+        <td class="amber-text">${r.insert_time_ms} ms</td>
+        <td class="violet-text">${r.bigram_query_ms} ms</td>
+        <td class="violet-text">${r.trigram_query_ms} ms</td>
+        <td>${r.memory_kb} KB</td>
+        <td>${(r.rows_bigrams||0).toLocaleString()}</td>
+        <td>${(r.rows_trigrams||0).toLocaleString()}</td>
+      </tr>`;
+    }).join('');
+
+    buildBarChart('insertChart', ['SQLite','HashMap','Trie'],
+      [bm.sqlite.insert_time_ms, bm.hashmap.insert_time_ms, bm.trie.insert_time_ms],
+      'Insert Time (ms)', '#D6A34A');
+
+    buildBarChart('queryChart', ['SQLite','HashMap','Trie'],
+      [bm.sqlite.bigram_query_ms, bm.hashmap.bigram_query_ms, bm.trie.bigram_query_ms],
+      'Bigram Query (ms)', '#9B8AFB');
+
+    buildBarChart('memChart', ['SQLite','HashMap','Trie'],
+      [bm.sqlite.memory_kb, bm.hashmap.memory_kb, bm.trie.memory_kb],
+      'Memory (KB)', '#D6A34A');
+
+    document.getElementById('benchNotes').innerHTML = backends.map(b =>
+      `<div class="bench-note"><strong>${b.icon} ${b.label}:</strong> ${bm[b.key].notes}</div>`
+    ).join('');
+
+  } catch(e) {
+    document.getElementById('benchLoading').style.display = 'none';
+    document.getElementById('benchStatus').textContent = '❌ Error';
+    showToast('Benchmark failed: ' + e.message, 'error');
+  }
+}
+
+// ════════════════════════
+//  DB VIEWER
+// ════════════════════════
+async function loadDBViewer() {
+  document.getElementById('dbViewerLoading').style.display = 'flex';
+  document.getElementById('dbViewerContent').style.display = 'none';
+  try {
+    const d = await apiGet('/api/db_view');
+    document.getElementById('dbViewerLoading').style.display = 'none';
+    document.getElementById('dbViewerContent').style.display = 'block';
+
+    // Summary
+    const s = d.table_sizes;
+    document.getElementById('dbSummary').innerHTML = `
+      <div class="db-sum-item"><div class="db-sum-icon amber">U</div>
+        <div class="db-sum-num">${s.unigrams.toLocaleString()}</div>
+        <div class="db-sum-label">unigram rows</div></div>
+      <div class="db-sum-item"><div class="db-sum-icon violet">B</div>
+        <div class="db-sum-num">${s.bigrams.toLocaleString()}</div>
+        <div class="db-sum-label">bigram rows</div></div>
+      <div class="db-sum-item"><div class="db-sum-icon amber">T</div>
+        <div class="db-sum-num">${s.trigrams.toLocaleString()}</div>
+        <div class="db-sum-label">trigram rows</div></div>
+      <div class="db-sum-item"><div class="db-sum-icon violet" style="font-size:16px">📁</div>
+        <div class="db-sum-num" style="font-size:13px">wordnext.db</div>
+        <div class="db-sum-label">SQLite file</div></div>
+    `;
+
+    // Unigrams
+    const total = d.unigrams.reduce((s,r) => s+r.count, 0) || 1;
+    document.getElementById('dbt-unigrams-body').innerHTML = d.unigrams.map((r,i) => `
+      <tr>
+        <td class="row-num">${i+1}</td>
+        <td class="mono amber-text">${r.word}</td>
+        <td><span class="count-badge">${r.count}</span></td>
+        <td class="mono violet-text">${(r.count/total*100).toFixed(3)}%</td>
+      </tr>`).join('');
+
+    // Bigrams
+    document.getElementById('dbt-bigrams-body').innerHTML = d.bigrams.map((r,i) => `
+      <tr>
+        <td class="row-num">${i+1}</td>
+        <td class="mono amber-text">${r.w1}</td>
+        <td class="mono violet-text">${r.w2}</td>
+        <td><span class="count-badge">${r.count}</span></td>
+      </tr>`).join('');
+
+    // Trigrams
+    document.getElementById('dbt-trigrams-body').innerHTML = d.trigrams.map((r,i) => `
+      <tr>
+        <td class="row-num">${i+1}</td>
+        <td class="mono" style="color:var(--text-s)">${r.w1}</td>
+        <td class="mono amber-text">${r.w2}</td>
+        <td class="mono violet-text">${r.w3}</td>
+        <td><span class="count-badge">${r.count}</span></td>
+      </tr>`).join('');
+
+    // SQL queries
+    document.getElementById('sql-queries-list').innerHTML = d.sample_queries.map(q => {
+      const res = q.result.length > 0
+        ? q.result.map(r => Object.entries(r).map(([k,v]) =>
+            `<span class="sql-res-kv"><span class="sql-res-k">${k}</span>: <span class="sql-res-v">${v}</span></span>`
+          ).join(' | ')).join('<br>')
+        : '<span style="color:var(--text-s)">No results found</span>';
+      return `
+        <div class="sql-query-block">
+          <div class="sql-query-label">${q.label}</div>
+          <div class="sql-block" style="margin:8px 0"><pre>${q.sql}</pre></div>
+          <div class="sql-result-box">
+            <span class="sql-result-label">Result:</span>
+            <div class="sql-result-data">${res}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+  } catch(e) {
+    document.getElementById('dbViewerLoading').innerHTML =
+      '<span style="color:#f87171">❌ Failed to load database: ' + e.message + '</span>';
+  }
+}
+
+function showDBTab(tab, btn) {
+  document.querySelectorAll('.db-tab').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.db-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('dbt-' + tab).classList.add('active');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — WordNext AI{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-inner">
+    <div>
+      <div class="page-eyebrow">Overview</div>
+      <h1 class="page-title">Dashboard</h1>
+      <p class="page-desc">Predictive Text using Markov Chain Language Models</p>
+    </div>
+    <button class="btn-primary" onclick="retrainModel()">
+      <span class="btn-icon">↺</span> Retrain Model
+    </button>
+  </div>
+</div>
+
+<!-- ── HERO STATS ── -->
+<div class="stats-row" id="heroStats">
+  <div class="stat-card">
+    <div class="stat-icon amber">V</div>
+    <div class="stat-body">
+      <div class="stat-val" id="sv-vocab">–</div>
+      <div class="stat-name">Vocabulary Size</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon violet">2</div>
+    <div class="stat-body">
+      <div class="stat-val" id="sv-bigrams">–</div>
+      <div class="stat-name">Unique Bigrams</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon amber">3</div>
+    <div class="stat-body">
+      <div class="stat-val" id="sv-trigrams">–</div>
+      <div class="stat-name">Unique Trigrams</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon violet">T</div>
+    <div class="stat-body">
+      <div class="stat-val" id="sv-tokens">–</div>
+      <div class="stat-name">Training Tokens</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon amber">⏱</div>
+    <div class="stat-body">
+      <div class="stat-val" id="sv-traintime">–</div>
+      <div class="stat-name">Train Time (ms)</div>
+    </div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-icon violet">S</div>
+    <div class="stat-body">
+      <div class="stat-val" id="sv-sparsity">–</div>
+      <div class="stat-name">Bigram Sparsity %</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TWO COLUMN ── -->
+<div class="two-col">
+
+  <!-- Top Words Chart -->
+  <div class="glass-card">
+    <div class="card-title-row">
+      <h3 class="card-title">Top 10 Words (Unigrams)</h3>
+      <span class="card-badge">Frequency</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="unigramChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Top Bigrams -->
+  <div class="glass-card">
+    <div class="card-title-row">
+      <h3 class="card-title">Top Bigrams</h3>
+      <span class="card-badge">Co-occurrence</span>
+    </div>
+    <div id="topBigramsList" class="ngram-list"></div>
+  </div>
+
+</div>
+
+<!-- ── SPARSITY + INFO ── -->
+<div class="two-col">
+  <div class="glass-card">
+    <div class="card-title-row">
+      <h3 class="card-title">Data Sparsity Problem</h3>
+      <span class="card-badge tooltip-trigger" data-tip="Most possible n-gram combinations never appear in training data. This is WHY we need Laplace smoothing.">?</span>
+    </div>
+    <p class="card-desc">
+      Most possible n-gram combinations never appear in training data.
+      Trigrams are far more sparse — this is the core motivation for smoothing.
+    </p>
+    <div id="sparsityDisplay" class="sparsity-display"></div>
+  </div>
+
+  <div class="glass-card">
+    <div class="card-title-row">
+      <h3 class="card-title">Markov Chain Theory</h3>
+      <span class="card-badge">Core Concept</span>
+    </div>
+    <div class="theory-blocks">
+      <div class="theory-block">
+        <div class="theory-label">Markov Property</div>
+        <div class="formula-box">P(wₙ | w₁…wₙ₋₁) ≈ P(wₙ | wₙ₋₁)</div>
+      </div>
+      <div class="theory-block">
+        <div class="theory-label">MLE Bigram</div>
+        <div class="formula-box">P(w₂|w₁) = count(w₁,w₂) / count(w₁)</div>
+      </div>
+      <div class="theory-block">
+        <div class="theory-label">Laplace Smoothing</div>
+        <div class="formula-box">P(w₂|w₁) = (c(w₁,w₂)+k) / (c(w₁)+k·|V|)</div>
+      </div>
+      <div class="theory-block">
+        <div class="theory-label">Backoff Strategy</div>
+        <div class="formula-box">Trigram → Bigram → Unigram</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODEL INFO PANEL ── -->
+<div class="glass-card">
+  <div class="card-title-row">
+    <h3 class="card-title">Model Configuration</h3>
+    <span class="card-badge">Info</span>
+  </div>
+  <div class="info-grid">
+    <div class="info-item">
+      <div class="info-key">Smoothing</div>
+      <div class="info-val">Laplace Add-1 (k=1.0)</div>
+    </div>
+    <div class="info-item">
+      <div class="info-key">Backoff</div>
+      <div class="info-val">Trigram → Bigram → Unigram</div>
+    </div>
+    <div class="info-item">
+      <div class="info-key">Train / Test Split</div>
+      <div class="info-val">80% / 20%</div>
+    </div>
+    <div class="info-item">
+      <div class="info-key">Random Seed</div>
+      <div class="info-val">42 (reproducible)</div>
+    </div>
+    <div class="info-item">
+      <div class="info-key">Framework</div>
+      <div class="info-val">Python + Flask (no ML libraries)</div>
+    </div>
+    <div class="info-item">
+      <div class="info-key">Storage</div>
+      <div class="info-val">SQLite + HashMap + Trie</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Load dashboard data on page load
+document.addEventListener('DOMContentLoaded', loadDashboard);
+
+async function loadDashboard() {
+  try {
+    const data = await apiGet('/api/stats');
+    const cs   = data.corpus_stats;
+
+    // Hero stats
+    animNum('sv-vocab',    cs.vocab_size);
+    animNum('sv-bigrams',  cs.unique_bigrams);
+    animNum('sv-trigrams', cs.unique_trigrams);
+    animNum('sv-tokens',   cs.train_tokens);
+    document.getElementById('sv-traintime').textContent = cs.train_time_ms;
+    document.getElementById('sv-sparsity').textContent  = cs.bigram_sparsity + '%';
+
+    // Unigram bar chart
+    const labels = data.top_unigrams.map(x => x.word);
+    const values = data.top_unigrams.map(x => x.count);
+    buildBarChart('unigramChart', labels, values, 'Word Count');
+
+    // Top bigrams list
+    const bgEl = document.getElementById('topBigramsList');
+    const maxC = data.top_bigrams[0]?.count || 1;
+    bgEl.innerHTML = data.top_bigrams.map(b => `
+      <div class="ngram-item">
+        <span class="ngram-text">${b.ngram}</span>
+        <div class="ngram-bar-bg">
+          <div class="ngram-bar" style="width:${(b.count/maxC*100).toFixed(1)}%"></div>
+        </div>
+        <span class="ngram-count">×${b.count}</span>
+      </div>
+    `).join('');
+
+    // Sparsity display
+    const spEl = document.getElementById('sparsityDisplay');
+    spEl.innerHTML = `
+      <div class="sp-item">
+        <div class="sp-row-label"><span>Bigram Sparsity</span><span class="sp-pct">${cs.bigram_sparsity}%</span></div>
+        <div class="sp-bar-bg"><div class="sp-bar amber-bar" style="width:${cs.bigram_sparsity}%"></div></div>
+        <div class="sp-note">Only ${(100-cs.bigram_sparsity).toFixed(2)}% of possible word-pair combinations seen</div>
+      </div>
+      <div class="sp-item" style="margin-top:14px">
+        <div class="sp-row-label"><span>Trigram Sparsity</span><span class="sp-pct">${Math.min(cs.trigram_sparsity,100)}%</span></div>
+        <div class="sp-bar-bg"><div class="sp-bar violet-bar" style="width:${Math.min(cs.trigram_sparsity,100)}%"></div></div>
+        <div class="sp-note">Trigrams are almost always 100% sparse — Laplace smoothing is essential</div>
+      </div>
+    `;
+  } catch(e) {
+    console.error('Dashboard load error:', e);
+  }
+}
+
+async function retrainModel() {
+  showToast('Retraining model…', 'info');
+  try {
+    const res = await apiPost('/api/train', {});
+    if (res.success) {
+      showToast('Model retrained successfully!', 'success');
+      loadDashboard();
+    } else {
+      showToast('Training failed: ' + res.error, 'error');
+    }
+  } catch(e) {
+    showToast('Request failed.', 'error');
+  }
+}
+</script>
+{% endblock %}
